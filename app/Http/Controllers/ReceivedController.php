@@ -43,7 +43,7 @@ class ReceivedController extends Controller
             $max = "SELECT max(CODFAC) as CODIGO FROM F_FAC WHERE TIPFAC = '".$rol."'";//query para sacar el numero de factura maximo de el tipo(serie)
             $exec = $this->conn->prepare($max);
             $exec -> execute();
-            $maxcode=$exec->fetch(\PDO::FETCH_ASSOC);
+            $maxcode=$exec->fetch(\PDO::FETCH_ASSOC);//averS
                 $codfac = intval($maxcode["CODIGO"])+ 1;//se obtiene el nuevo numero de factura que se inserara
 
             $prouduct = $this->productrequired($id,$rol,$codfac);//se envian datos id de la requisision, tipo de factura(serie) y codigo de factura a insertar hacia el metodo 
