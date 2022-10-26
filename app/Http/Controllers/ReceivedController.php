@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -28,6 +30,8 @@ class ReceivedController extends Controller
             if($id){//SE VALIDA QUE LA REQUISICION EXISTA
                 if($status == 5){//SE VALIDA QUE LA REQUISICION ESTE EN ESTATUS 6 POR ENVIAR
                     $count =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');
+                    $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');
+                    
                     if($count > 0){//SE VALIDA QUE LA REQUISICION CONTENGA AL MENOS 1 ARTICULO CONTADO
                         $requisitions = DB::table('requisition AS R')->join('workpoints AS W','W.id','=','R._workpoint_from')->where('R.id', $id)->select('R.*','W._client AS cliente')->first();//se realiza el query para pasar los datos de la requisicion con la condicion de el id recibido
                         $clien = $requisitions->cliente;//se obtiene el cliente de el query que es el numero de cliente de la sucursal que pide la mercancia
@@ -89,8 +93,26 @@ class ReceivedController extends Controller
                         $exec -> execute($fac);
                         $folio = $rol."-".str_pad($codfac, 6, "0", STR_PAD_LEFT);//se obtiene el folio de la factura
                         DB::table('requisition')->where('id',$id)->update(['invoice'=>$folio]);//se actualiza la columna invoice con el numero de la factura
-                        return response()->json($folio);//se retorna el folio de la factura
+                        $curl = curl_init();
+                        curl_setopt_array($curl, array(
+                          CURLOPT_URL => "https://api.ultramsg.com/instance9800/messages/chat",
+                          CURLOPT_RETURNTRANSFER => true,
+                          CURLOPT_ENCODING => "",
+                          CURLOPT_MAXREDIRS => 10,
+                          CURLOPT_TIMEOUT => 30,
+                          CURLOPT_SSL_VERIFYHOST => 0,
+                          CURLOPT_SSL_VERIFYPEER => 0,
+                          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                          CURLOPT_CUSTOMREQUEST => "POST",
+                          CURLOPT_POSTFIELDS => "token=6r5vqntlz18k61iu&to=+525573461022&body=el pedido numero P-$id ya esta validado con $count  Modelos y $sum piezas.  El numero de salida es $folio proximo a llegar&priority=1&referenceId=",
+                          CURLOPT_HTTPHEADER => array(
+                            "content-type: application/x-www-form-urlencoded"),));
+                        $response = curl_exec($curl);
+                        $err = curl_error($curl);         
+                        curl_close($curl);
             
+                        return response()->json($folio);//se retorna el folio de la factura
+                       
                     }else{return response("NO SE PUEDE PROCESAR YA QUE NO HAY ARTICULOS VALIDADOS",400);}
                 }else{return response("NO SE CREA LA FACTURA LA REQUISICION AUN NO ES VALIDADA",400);}
             }else{return response("EL CODIGO DE REQUISICION NO EXITE",404);}
@@ -131,9 +153,9 @@ class ReceivedController extends Controller
             $updatestock = "UPDATE F_STO SET ACTSTO = ACTSTO - ? , DISSTO = DISSTO - ?  WHERE  ARTSTO = ? AND ALMSTO = ?";//query para actualizar los stock de el almacen recordemos que solo es general
             $exec = $this->conn->prepare($updatestock);
             $exec -> execute([$pro->cantidad,$pro->cantidad,$pro->codigo, "GEN"]);
-
             $pos++;//contador
         }  
+
         return $ttotal;//se retorna el total para el uso en el encabezado de la factura
 
     }

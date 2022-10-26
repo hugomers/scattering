@@ -71,6 +71,31 @@ class RequiredController extends Controller
                         $exec -> execute($fac);
                         $folio = $rol."-".str_pad($codfac, 6, "0", STR_PAD_LEFT);//se obtiene el folio de la factura
                         DB::table('requisition')->where('id',$id)->update(['invoice_received'=>$folio]);//se actualiza la columna invoice con el numero de la factura
+                        $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toReceived')->sum('toReceived');
+                        $countde =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');
+                        $sumde =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');
+                        $difmod =  $count - $countde;
+                        $difcan = $sum - $sumde;
+                        if(($difcan == 0) && ($difmod == 0)){
+                            $message = "El pedido numero P-$id se recibio con $count  Modelos y $sum piezas. No hay diferencias!!!😎🫡🤙. El numero de Factura Recibida es $folio";
+                        }else{$message = "El pedido numero P-$id se recibio con $count  Modelos y $sum piezas obteniendo una dIferencia de $difmod modelos y $difcan piezas. El numero de Factura Recibida es $folio ❗❗*favor de revisar las diferencias*❗❗"; }                                    
+                        $curl = curl_init();
+                        curl_setopt_array($curl, array(
+                          CURLOPT_URL => "https://api.ultramsg.com/instance9800/messages/chat",
+                          CURLOPT_RETURNTRANSFER => true,
+                          CURLOPT_ENCODING => "",
+                          CURLOPT_MAXREDIRS => 10,
+                          CURLOPT_TIMEOUT => 30,
+                          CURLOPT_SSL_VERIFYHOST => 0,
+                          CURLOPT_SSL_VERIFYPEER => 0,
+                          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                          CURLOPT_CUSTOMREQUEST => "POST",
+                          CURLOPT_POSTFIELDS => "token=6r5vqntlz18k61iu&to=+525573461022&body=$message&priority=1&referenceId=",
+                          CURLOPT_HTTPHEADER => array(
+                            "content-type: application/x-www-form-urlencoded"),));
+                        $response = curl_exec($curl);
+                        $err = curl_error($curl);         
+                        curl_close($curl);
                         return response()->json($folio);//se retorna el folio de la factura
             
                     }else{return response("NO SE PUEDE PROCESAR YA QUE NO HAY ARTICULOS VALIDADOS",400);}
