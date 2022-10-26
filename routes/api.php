@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReceivedController;
+use App\Http\Controllers\RequiredController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -16,4 +17,8 @@ use App\Http\Controllers\ReceivedController;
 
 Route::prefix('Received')->group(function(){
     Route::post('/c',[ReceivedController::class, 'required']);
+});
+
+Route::prefix('Required')->group(function(){
+    Route::post('/c',[RequiredController::class, 'received']);
 });
