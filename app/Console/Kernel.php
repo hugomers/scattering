@@ -120,7 +120,7 @@ class Kernel extends ConsoleKernel
                 }
             }
         }      
-    })->hourly();
+    })->everyThirtyMinutes();
    
     $schedule->call(function (){
         $workpoint = env("WORKPOINT");
