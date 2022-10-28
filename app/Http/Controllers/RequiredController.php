@@ -71,9 +71,11 @@ class RequiredController extends Controller
                         $exec -> execute($fac);
                         $folio = $rol."-".str_pad($codfac, 6, "0", STR_PAD_LEFT);//se obtiene el folio de la factura
                         DB::table('requisition')->where('id',$id)->update(['invoice_received'=>$folio]);//se actualiza la columna invoice con el numero de la factura
-                        $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toReceived')->sum('toReceived');//suma de  cantidad de piezas recibidas
+                        $sumcase = DB::table('product_required AS PR')->select(DB::raw('SUM(CASE WHEN PR._supply_by = 1 THEN PR.toReceived  WHEN PR._supply_by = 2  THEN PR.toReceived * 12  WHEN PR._supply_by = 3  THEN PR.toReceived * PR.ipack   WHEN PR._supply_by = 4    THEN (PR.toReceived * (PR.ipack / 2))  ELSE 0  END) AS CASESUM'))->where('PR._requisition', $id)->first(); //se cuenta cuantas piezas se validaron
+                        $sum = $sumcase->CASESUM;
                         $countde =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');//suma de conteo de productos enviadas
-                        $sumde =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');// suma de cantidad de piezas enviadas
+                        $sumcasede = DB::table('product_required AS PR')->select(DB::raw('SUM(CASE WHEN PR._supply_by = 1 THEN PR.toDelivered  WHEN PR._supply_by = 2  THEN PR.toDelivered * 12  WHEN PR._supply_by = 3  THEN PR.toDelivered * PR.ipack   WHEN PR._supply_by = 4    THEN (PR.toDelivered * (PR.ipack / 2))  ELSE 0  END) AS CASESUM'))->where('PR._requisition', $id)->first(); //se cuenta cuantas piezas se validaron
+                        $sumde = $sumcasede->CASESUM;
                         $difmod =  $count - $countde;//diferencia de conteos
                         $difcan = $sum - $sumde;//diferencias en cantidad
                         if(($difcan == 0) && ($difmod == 0)){//se valida que no haya diferencia
@@ -96,7 +98,7 @@ class RequiredController extends Controller
                         $response = curl_exec($curl);//respuesta
                         $err = curl_error($curl);         //errror
                         curl_close($curl);//se cierra curl
-                        return response()->json($folio);//se retorna el folio de la factura
+                        return response()->json([$folio]);//se retorna el folio de la factura
             
                     }else{return response("NO SE PUEDE PROCESAR YA QUE NO HAY ARTICULOS VALIDADOS",400);}
                 }else{return response("NO SE CREA LA FACTURA LA REQUISICION AUN NO ES VALIDADA",400);}
@@ -110,15 +112,16 @@ class RequiredController extends Controller
             ->leftjoin('prices_product AS PP','PP._product','=','P.id')
             ->where('PR._requisition',$id)
             ->wherenotnull('PR.toReceived')
-            ->select('P.code AS codigo','P.description AS descripcion','PR.toReceived AS cantidad','PP.AAA AS precio' ,'P.cost as costo')
+            ->select('P.code AS codigo','P.description AS descripcion','PR.toReceived AS cantidad','PP.AAA AS precio' ,'P.cost as costo','PR._supply_by AS medida','PR.ipack AS PXC')
             ->get();
 
         $pos= 1;//inicio contador de posision
         $ttotal=0;//inicio contador de total
         foreach($product_require as $pro){//inicio de cliclo para obtener productos
             $precio = $pro->precio;//se optiene el precio de cada producto
+            if($pro->medida == 1){$canti = $pro->cantidad ;}elseif($pro->medida == 2){$canti = $pro->cantidad * 12; }elseif($pro->medida == 3){$canti = $pro->cantidad * $pro->PXC ;}elseif($pro->medida == 4){$canti = ($pro->cantidad * ($pro->PXC / 2)) ;}//SE VALIDA LA UNIDAD DE MECIDA DE SURTIDO
             $cantidad = $pro->cantidad;//se obtine la cantidad de cada producto
-            $total = $precio * $cantidad ;//se obtiene el total de la linea
+            $total = $precio * $canti ;//se obtiene el total de la linea
             $ttotal = $ttotal + $total ;//se obtiene el total de la requisision
             $values = [//se genera el arreglo para la insercion a factusol
                 $rol,//tipo de documento
@@ -126,7 +129,7 @@ class RequiredController extends Controller
                 $pos,//posision de la linea
                 $pro->codigo,//codigo de el articulo
                 $pro->descripcion,//descripcion de el articulo
-                $pro->cantidad,//cantidad contada
+                $canti,//cantidad contada
                 $pro->precio,//precio de el articulo
                 $total//total de la linea            
             ];

@@ -30,8 +30,8 @@ class ReceivedController extends Controller
             if($id){//SE VALIDA QUE LA REQUISICION EXISTA
                 if($status == 5){//SE VALIDA QUE LA REQUISICION ESTE EN ESTATUS 5 validando
                     $count =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');//se cuentan cuantos articulos se validaron
-                    $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');//se cuenta cuantas piezas se validaron
-                    
+                    $sumcase = DB::table('product_required AS PR')->select(DB::raw('SUM(CASE WHEN PR._supply_by = 1 THEN PR.toDelivered  WHEN PR._supply_by = 2  THEN PR.toDelivered * 12  WHEN PR._supply_by = 3  THEN PR.toDelivered * PR.ipack   WHEN PR._supply_by = 4    THEN (PR.toDelivered * (PR.ipack / 2))  ELSE 0  END) AS CASESUM'))->where('PR._requisition', $id)->first(); //se cuenta cuantas piezas se validaron
+                     $sum = $sumcase->CASESUM;
                     if($count > 0){//SE VALIDA QUE LA REQUISICION CONTENGA AL MENOS 1 ARTICULO CONTADO
                         $requisitions = DB::table('requisition AS R')->join('workpoints AS W','W.id','=','R._workpoint_from')->where('R.id', $id)->select('R.*','W._client AS cliente')->first();//se realiza el query para pasar los datos de la requisicion con la condicion de el id recibido
                         $clien = $requisitions->cliente;//se obtiene el cliente de el query que es el numero de cliente de la sucursal que pide la mercancia
@@ -125,15 +125,15 @@ class ReceivedController extends Controller
             ->leftjoin('prices_product AS PP','PP._product','=','P.id')
             ->where('PR._requisition',$id)
             ->wherenotnull('PR.toDelivered')
-            ->select('P.code AS codigo','P.description AS descripcion','PR.toDelivered AS cantidad','PP.AAA AS precio' ,'P.cost as costo')
+            ->select('P.code AS codigo','P.description AS descripcion','PR.toDelivered AS cantidad','PP.AAA AS precio' ,'P.cost as costo','PR._supply_by AS medida','PR.ipack AS PXC')
             ->get();
 
         $pos= 1;//inicio contador de posision
         $ttotal=0;//inicio contador de total
         foreach($product_require as $pro){//inicio de cliclo para obtener productos
-            $precio = $pro->precio;//se optiene el precio de cada producto
-            $cantidad = $pro->cantidad;//se obtine la cantidad de cada producto
-            $total = $precio * $cantidad ;//se obtiene el total de la linea
+            $precio = $pro->precio;//se optiene el precio de cada producto  
+            if($pro->medida == 1){$canti = $pro->cantidad ;}elseif($pro->medida == 2){$canti = $pro->cantidad * 12; }elseif($pro->medida == 3){$canti = $pro->cantidad * $pro->PXC ;}elseif($pro->medida == 4){$canti = ($pro->cantidad * ($pro->PXC / 2)) ;}//se valida la unidad de medida de el surtio
+            $total = $precio * $canti ;//se obtiene el total de la linea
             $ttotal = $ttotal + $total ;//se obtiene el total de la requisision
             $values = [//se genera el arreglo para la insercion a factusol
                 $rol,//tipo de documento
@@ -141,7 +141,7 @@ class ReceivedController extends Controller
                 $pos,//posision de la linea
                 $pro->codigo,//codigo de el articulo
                 $pro->descripcion,//descripcion de el articulo
-                $pro->cantidad,//cantidad contada
+                $canti,//cantidad contada
                 $pro->precio,//precio de el articulo
                 $total,//total de la linea
                 $pro->costo//costo actual de el articulo
