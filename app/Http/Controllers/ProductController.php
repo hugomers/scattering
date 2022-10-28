@@ -16,60 +16,29 @@ class ProductController extends Controller
         }else{ die("$access no es un origen de datos valido."); }
     }
 
-    public function familiarizacion(){
+    public function familiarizacion(){//metodo para replicar las familiarizaciones en mysql
         
-        DB::statement("SET SQL_SAFE_UPDATES = 0;");
-        DB::statement("SET FOREIGN_KEY_CHECKS = 0;");
-        DB::statement("truncate table product_variants;");
-        DB::statement("SET SQL_SAFE_UPDATES = 1;");
-        DB::statement("SET FOREIGN_KEY_CHECKS = 1;");
+        DB::statement("SET SQL_SAFE_UPDATES = 0;");//se desactiva safe update
+        DB::statement("SET FOREIGN_KEY_CHECKS = 0;");//se desactivan las llaves foraneas
+        DB::statement("truncate table product_variants;");//se vacia la tabla de familiarizaciones
+        DB::statement("SET SQL_SAFE_UPDATES = 1;");//se activan las llaves foraneas
+        DB::statement("SET FOREIGN_KEY_CHECKS = 1;");//se activa safe update
         try{
-            $select = "SELECT * FROM F_EAN";
+            $select = "SELECT * FROM F_EAN";//query para ver las familiarizaciones
             $exec = $this->conn->prepare($select);
             $exec -> execute();
-            $art=$exec->fetchall(\PDO::FETCH_ASSOC);
+            $art=$exec->fetchall(\PDO::FETCH_ASSOC);//se executa
         }catch (\PDOException $e){ die($e->getMessage());}
                 foreach($art as $artic){
-                    $pro = DB::table('products')->where('code',$artic["ARTEAN"])->value('id');                 
-                    $product = [
+                    $pro = DB::table('products')->where('code',$artic["ARTEAN"])->value('id');// se busca el id de el producto que se va a familiarizar             
+                    $product = [//se crea el arreglo de insercion
                         "barcode"=>$artic["EANEAN"],
                         "stock"=>0,
                         "_product"=>$pro
                     ];
-                    $ins = DB::table('product_variants')->insert($product);
+                    $ins = DB::table('product_variants')->insert($product);//se inserta el arreglo 
                 }
                 return response()->json("Familiarizaciones creadas correctamente");
     }
-    public function wor(){
-        $workpoint = env("WORKPOINT");
-        if($workpoint == 18){
-            $select = 
-            "SELECT F_ART.CODART AS CODIGO,
-             SUM(IIF(F_STO.ALMSTO = 'GEN', F_STO.ACTSTO , 0)) AS GENSTOCK, 
-             SUM(IIF(F_STO.ALMSTO = 'DES', F_STO.ACTSTO , 0)) AS DESSTOCK, 
-             SUM(IIF(F_STO.ALMSTO = 'EXH', F_STO.ACTSTO , 0)) AS EXHSTOCK, 
-             SUM(IIF(F_STO.ALMSTO = 'FDT', F_STO.ACTSTO , 0)) AS FDTSTOCK, 
-             SUM(IIF(F_STO.ALMSTO = 'GEN', F_STO.ACTSTO , 0)  + IIF(F_STO.ALMSTO = 'EXH', F_STO.ACTSTO , 0) ) AS STOCK 
-             FROM F_ART  
-             INNER JOIN F_STO ON F_STO.ARTSTO = F_ART.CODART  
-             WHERE F_STO.ACTSTO <> 0 GROUP BY F_ART.CODART ";
-            $exec = $this->conn->prepare($select);
-            $exec ->execute();
-            $art=$exec->fetchall(\PDO::FETCH_ASSOC);
-            foreach($art as $rt){
-                $produ = DB::table('products')->where('code',$rt["CODIGO"])->VALUE('id');
-                $sto = [
-                    "stock"=>$rt["STOCK"],
-                    "gen"=>$rt["GENSTOCK"],
-                    "exh"=>$rt["EXHSTOCK"],
-                    "des"=>$rt["DESSTOCK"],
-                    "fdt"=>$rt["FDTSTOCK"] 
-                ];
-                DB::table('product_stock')->where('_workpoint', $workpoint)->where('_product',$produ)->update($sto);
-            }
 
-        return response()->json($sto);    
-            
-        }
-    }
 }

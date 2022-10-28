@@ -25,12 +25,12 @@ class ReceivedController extends Controller
             $date = date("Y/m/d H:i");//se gerera la fecha de el dia de hoy con  formato de fecha y hora
             $date_format = date("d/m/Y");//se formatea la fecha de el dia con el formato solo de fecha
             $hour = "01/01/1900 ".explode(" ", $date)[1];//se formatea la fecha de el dia de hoy poniendo solo la hora en la que se genera
-            $status = DB::table('requisition')->where('id',$id)->value('_status');
-            $id = DB::table('requisition')->where('id',$id)->value('id');
+            $status = DB::table('requisition')->where('id',$id)->value('_status');//se obtiene el status de el la requisicion
+            $id = DB::table('requisition')->where('id',$id)->value('id');//se verifica que exista
             if($id){//SE VALIDA QUE LA REQUISICION EXISTA
-                if($status == 5){//SE VALIDA QUE LA REQUISICION ESTE EN ESTATUS 6 POR ENVIAR
-                    $count =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');
-                    $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');
+                if($status == 5){//SE VALIDA QUE LA REQUISICION ESTE EN ESTATUS 5 validando
+                    $count =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->count('_product');//se cuentan cuantos articulos se validaron
+                    $sum =DB::table('product_required')->where('_requisition',$id)->wherenotnull('toDelivered')->sum('toDelivered');//se cuenta cuantas piezas se validaron
                     
                     if($count > 0){//SE VALIDA QUE LA REQUISICION CONTENGA AL MENOS 1 ARTICULO CONTADO
                         $requisitions = DB::table('requisition AS R')->join('workpoints AS W','W.id','=','R._workpoint_from')->where('R.id', $id)->select('R.*','W._client AS cliente')->first();//se realiza el query para pasar los datos de la requisicion con la condicion de el id recibido
@@ -93,7 +93,7 @@ class ReceivedController extends Controller
                         $exec -> execute($fac);
                         $folio = $rol."-".str_pad($codfac, 6, "0", STR_PAD_LEFT);//se obtiene el folio de la factura
                         DB::table('requisition')->where('id',$id)->update(['invoice'=>$folio]);//se actualiza la columna invoice con el numero de la factura
-                        $curl = curl_init();
+                        $curl = curl_init();//inicia el curl para el envio de el mensaje via whats app
                         curl_setopt_array($curl, array(
                           CURLOPT_URL => "https://api.ultramsg.com/instance9800/messages/chat",
                           CURLOPT_RETURNTRANSFER => true,
@@ -104,7 +104,7 @@ class ReceivedController extends Controller
                           CURLOPT_SSL_VERIFYPEER => 0,
                           CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
                           CURLOPT_CUSTOMREQUEST => "POST",
-                          CURLOPT_POSTFIELDS => "token=6r5vqntlz18k61iu&to=+525573461022&body=el pedido numero P-$id ya esta validado con $count  Modelos y $sum piezas.  El numero de salida es $folio proximo a llegar&priority=1&referenceId=",
+                          CURLOPT_POSTFIELDS => "token=6r5vqntlz18k61iu&to=+525573461022&body=el pedido numero P-$id ya esta validado con $count  Modelos y $sum piezas.  El numero de salida es $folio proximo a llegar&priority=1&referenceId=",//se redacta el mensaje que se va a enviar con los modelos y las piezas y el numero de salida
                           CURLOPT_HTTPHEADER => array(
                             "content-type: application/x-www-form-urlencoded"),));
                         $response = curl_exec($curl);
