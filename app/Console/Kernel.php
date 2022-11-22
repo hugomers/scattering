@@ -148,9 +148,11 @@ class Kernel extends ConsoleKernel
                     "fdt"=>$rt["FDTSTOCK"] 
                 ];
                 DB::table('product_stock')->where('_workpoint', $workpoint)->where('_product',$produ)->update($sto);//SE ACTUALIZA EL STOCK DE LA SUCURSAL CORRESPODIENTE
+                DB::connection('puebla')->table('product_stock')->where('_workpoint', $workpoint)->where('_product',$produ)->update($sto);//SE ACTUALIZA EL STOCK DE LA SUCURSAL CORRESPODIENTE
+            
             }
         }   
-         })->everyThreeMinutes();//TAREA SE GENERA CADA 30 MIN
+         })->everyThreeMinutes();//TAREA SE GENERA CADA 3 MIN
     }
 
     /**
