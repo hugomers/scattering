@@ -16,6 +16,8 @@ use App\Http\Controllers\ProductController;
 |
 */
 
+// Route::post('/',"hola");
+
 Route::prefix('Received')->group(function(){
     Route::post('/c',[ReceivedController::class, 'required']);
 });
@@ -24,7 +26,13 @@ Route::prefix('Required')->group(function(){
     Route::post('/c',[RequiredController::class, 'received']);
 });
 
-Route::prefix('Product')->group(function(){
+// Route::prefix('Product')->group(function(){
+//     Route::get('/fam',[ProductController::class, 'familiarizacion']);
+//     Route::get('/wor',[ProductController::class, 'wor']);
+// });
+
+Route::prefix('product')->group(function(){
     Route::get('/fam',[ProductController::class, 'familiarizacion']);
     Route::get('/wor',[ProductController::class, 'wor']);
+    Route::get('/insart',[ProductController::class, 'productInsert']);
 });
