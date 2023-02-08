@@ -35,4 +35,8 @@ Route::prefix('product')->group(function(){
     Route::get('/fam',[ProductController::class, 'familiarizacion']);
     Route::get('/wor',[ProductController::class, 'wor']);
     Route::get('/insart',[ProductController::class, 'productInsert']);
+    Route::get('/celler',[ProductController::class, 'replyCeller']);
+    Route::get('/minmax',[ProductController::class, 'minmax']);
+
+
 });

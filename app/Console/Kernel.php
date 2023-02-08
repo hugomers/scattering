@@ -223,7 +223,257 @@ class Kernel extends ConsoleKernel
         //                             "articulos cdmx"=>count($mocd)]);
         echo "articulos pub ".count($modd)." articulos cdmx ".count($mocd);
          })->everyMinute();//TAREA SE GENERA CADA 3 MIN
+
+    $schedule->call(function (){//replicacion de ubicaciones
+            $exist = [];
+            $created = [];
+            $secticdmx = [];
+            $workpoint = env('WKP');
+            $cellers = DB::connection('puebla')->table('celler')->where('_workpoint',$workpoint)->get();
+            foreach($cellers as $celler){
+                $celcd = DB::table('celler')->where('_workpoint',$workpoint)->where('name',$celler->name)->value('name');
+                if($celcd){
+                    $exist[]="el almacen ".$celcd." ya existe";
+                }else{
+                    // $ins = DB::table('celler')->insert(['name'=>$celler->name,'_workpoint'=>$workpoint,'_type'=>$celler->_type]);
+                    $created[]="el almacen ".$celler->name." se creo correctamente";
+                }
+            }
+            $sections = DB::connection('puebla')->table('celler_section AS CS')->join('celler AS C','C.id','CS._celler')->where('C._workpoint',$workpoint)->select('CS.*','C.name as celler')->orderByRaw('CS.name ASC')->get();
+            foreach($sections as $section){
+                $idcd = DB::table('celler')->where('_workpoint',$workpoint)->where('name',$section->celler)->value('id');
+                $sectipub []   = [
+                    'name'=>$section->name,
+                    'alias'=>$section->alias,
+                    'path'=>$section->path,
+                    'root'=>$section->root,
+                    'deep'=>$section->deep,
+                    'details'=>json_encode([]),
+                    '_celler'=>$idcd,
+                    'deleted_at'=>$section->deleted_at
+                ]; 
+                
+                // $insert = DB::table('celler_section')->insert($sectipub);
+            }
+            $sectionscdmx = DB::table('celler_section AS CS')->join('celler AS C','C.id','CS._celler')->where('C._workpoint',$workpoint)->select('CS.*')->orderByRaw('CS.name ASC')->get();
+            
+                foreach($sectionscdmx as $sectioncdmx){
+                    $secticdmx [] = [
+                        "name"=>$sectioncdmx->name,
+                        "alias"=>$sectioncdmx->alias,
+                        "path"=>$sectioncdmx->path,
+                        "root"=>$sectioncdmx->root,
+                        "deep"=>$sectioncdmx->deep,
+                        "details"=>json_encode([]),
+                        "_celler"=>$sectioncdmx->_celler,
+                        "deleted_at"=>$sectioncdmx->deleted_at
+                    ]; 
+                }
+
+                $out = array_udiff($sectipub,$secticdmx, function($a,$b){
+                    if($a == $b){
+                        return  0;
+                        
+                    }else{
+                        return ($a > $b) ? 1 : -1;
+                    }
+                });
+
+                if($out){
+                    foreach($out as $updpub){
+                        $idceller = DB::table('celler_section')
+                        ->where('name',$updpub['name'])
+                        ->where('alias',$updpub['alias'])
+                        ->where('path',$updpub['path'])
+                        ->where('root',$updpub['root'])
+                        ->where('deep',$updpub['deep'])
+                        ->where('_celler',$updpub['_celler'])
+                        ->value('id');
+                        if($idceller){
+                            // $updpr = DB::table('celler_section')->where('id',$idceller)->update(['deleted_at'=>$updpub['deleted_at']]);
+                        }else{
+                        $updpr  =
+                            [
+                                "name"=>$updpub['name'],
+                                "alias"=>$updpub['alias'],
+                                "path"=>$updpub['path'],
+                                "root"=>$updpub['root'],
+                                "deep"=>$updpub['deep'],
+                                "details"=>$updpub['details'],
+                                "_celler"=>$updpub['_celler'],
+                                "deleted_at"=>$updpub['deleted_at']
+                            ]; 
+                            // $insert =DB::table('celler_section')->insert($updpr);
+                        }
+                    }
+                }else{$updpr = [];}
+
+                $plocations = DB::connection('puebla')
+                ->table('product_location AS PL')
+                ->join('products AS P','P.id','PL._product')
+                ->join('celler_section AS CS','CS.id','PL._location')
+                ->join('celler AS C','C.id','CS._celler')
+                ->where('C._workpoint',$workpoint)
+                ->select('P.code as codigo','C.name AS alm','CS.*')->get();
+                foreach($plocations as $plocation){
+                    $product = DB::table('products')->where('code',$plocation->codigo)->value('id');
+                    $celler = DB::table('celler')->where('_workpoint',$workpoint)->where('name',$plocation->alm)->value('id');
+                        $idceller = DB::table('celler_section')
+                        ->where('name',$plocation->name)
+                        ->where('alias',$plocation->alias)
+                        ->where('path',$plocation->path)
+                        ->where('root',$plocation->root)
+                        ->where('deep',$plocation->deep)
+                        ->where('_celler',$celler)
+                        ->value('id');
+            
+                    $prepare [] = [
+                        "_location"=>$idceller,
+                        "_product"=>$product,
+                    ];
+                }
+                sort($prepare,4);
+
+                foreach($prepare as $in){
+                    $insert []=$in;
+                }
+
+                $clocations = DB::table('product_location AS PL')
+                ->join('celler_section AS CS','CS.id','PL._location')
+                ->join('celler AS C','C.id','CS._celler')
+                ->where('C._workpoint',$workpoint)
+                ->select('PL.*')
+                ->orderByRaw('PL._location ASC')
+                ->orderByRaw('PL._product ASC')->get();
+                foreach($clocations as $clocation){
+                    $mscs [] = [
+                        "_location"=>$clocation->_location,
+                        "_product"=>$clocation->_product
+                    ];
+                }
+
+                $prduc = array_udiff($insert,$mscs, function($a,$b){
+                    if($a == $b){
+                        return  0;
+                        
+                    }else{
+                        return ($a > $b) ? 1 : -1;
+                    }
+                });
+
+                if($prduc){
+                foreach($prduc as $loc){
+                    $insdiff  = [
+                        "_location"=>$loc['_location'],
+                        "_product"=>$loc['_product'],
+                    ];
+                $diff = DB::table('product_location')->insert($insdiff);
+                        
+                }
+                }else{$insdiff = [];}
+
+                $delpro = array_udiff($mscs,$insert, function($a,$b){
+                    if($a == $b){
+                        return  0;
+                        
+                    }else{
+                        return ($a > $b) ? 1 : -1;
+                    }
+                });
+
+                if($delpro){
+                foreach($delpro as $delloc){
+
+                $ddiff = DB::table('product_location')->where('_location',$delloc['_location'])->where('_product',$delloc['_product'])->delete();
+                        
+                }
+                }else{$deldiff = [];}
+
+
+
+
+
+            $res =[
+                "celler"=>[
+                "fail"=>$exist,
+                "goal"=>$created],
+                "celler_section"=>[
+                    "puebla"=>$sectipub,
+                    "cdmx"=>$secticdmx,
+                    "diferencia"=>$updpr
+                ],
+                "product_location"=>[
+                    "insertados"=>$insdiff,
+                    "eliminados"=>$deldiff,
+                ]
+
+            ];
+
+            return response()->json($res);
+
+    })->everyFifteenMinutes();
+    $schedule->call(function (){
+        $workpoint = env('WKP');
+        $minmaxpub = DB::connection('puebla')
+        ->table('product_stock AS PS')
+        ->join('products AS P','P.id','PS._product')
+        ->where('P._status','!=',4)
+        ->where('PS.min','!=',0)
+        ->where('PS.max','!=',0)
+        ->where('PS._workpoint',$workpoint)
+        ->select('P.code as codigo','PS.min as minimo','PS.max as maximo')
+        ->orderByRaw('P.code ASC')
+        ->get();
+        foreach($minmaxpub as $mmp){
+            $updae [] = [
+                "product"=>$mmp->codigo, 
+                "min"=>$mmp->minimo,
+                "max"=>$mmp->maximo
+            ];
+        }
+        $minmaxcdmx = DB::table('product_stock AS PS')
+        ->join('products AS P','P.id','PS._product')
+        ->where('P._status','!=',4)
+        ->where('PS.min','!=',0)
+        ->where('PS.max','!=',0)
+        ->where('PS._workpoint',$workpoint)
+        ->select('P.code as codigo','PS.min as minimo','PS.max as maximo')
+        ->orderByRaw('P.code ASC')
+        ->get();
+        foreach($minmaxcdmx as $mmc){
+            $update [] = [
+                "product"=>$mmc->codigo,
+                "min"=>$mmc->minimo,
+                "max"=>$mmc->maximo
+            ];
+
+        }
+
+        $prduc = array_udiff($updae,$update, function($a,$b){
+            if($a == $b){
+                return  0;
+                
+            }else{
+                return ($a > $b) ? 1 : -1;
+            }
+        });
+
+        if($prduc){
+        foreach($prduc as $loc){
+            $insdiff = [
+                "PS.min"=>$loc['min'],
+                "PS.max"=>$loc['max'],
+            ];
+            $upda = DB::table('product_stock AS PS')->join('products AS P','P.id','PS._product')->where('PS._workpoint',$workpoint)->where('P.code',$loc['product'])->update($insdiff);
+        }
+        }else{$insdiff = [];}
+
+
+        return response()->json(["DIFERENCIA"=>$insdiff]);
+    })->everyFifteenMinutes();
     }
+
+ 
 
     /**
      * Register the commands for the application.
