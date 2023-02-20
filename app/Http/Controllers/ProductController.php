@@ -233,7 +233,7 @@ class ProductController extends Controller
             if($celcd){
                 $exist[]="el almacen ".$celcd." ya existe";
             }else{
-                // $ins = DB::table('celler')->insert(['name'=>$celler->name,'_workpoint'=>$workpoint,'_type'=>$celler->_type]);
+                $ins = DB::table('celler')->insert(['name'=>$celler->name,'_workpoint'=>$workpoint,'_type'=>$celler->_type]);
                 $created[]="el almacen ".$celler->name." se creo correctamente";
             }
         }
@@ -251,8 +251,9 @@ class ProductController extends Controller
                 'deleted_at'=>$section->deleted_at
             ]; 
             
-            // $insert = DB::table('celler_section')->insert($sectipub);
+            
         }
+       
         $sectionscdmx = DB::table('celler_section AS CS')->join('celler AS C','C.id','CS._celler')->where('C._workpoint',$workpoint)->select('CS.*')->orderByRaw('CS.name ASC')->get();
         
             foreach($sectionscdmx as $sectioncdmx){
@@ -320,16 +321,16 @@ class ProductController extends Controller
                     ->where('name',$plocation->name)
                     ->where('alias',$plocation->alias)
                     ->where('path',$plocation->path)
-                    ->where('root',$plocation->root)
-                    ->where('deep',$plocation->deep)
                     ->where('_celler',$celler)
                     ->value('id');
      
-                $prepare [] = [
+                $prepare []  = [
                     "_location"=>$idceller,
                     "_product"=>$product,
                 ];
+          
             }
+
             sort($prepare,4);
 
             foreach($prepare as $in){
@@ -382,7 +383,7 @@ class ProductController extends Controller
             if($delpro){
             foreach($delpro as $delloc){
 
-            $ddiff = DB::table('product_location')->where('_location',$delloc['_location'])->where('_product',$delloc['_product'])->delete();
+            $deldiff = DB::table('product_location')->where('_location',$delloc['_location'])->where('_product',$delloc['_product'])->delete();
                     
             }
             }else{$deldiff = [];}
