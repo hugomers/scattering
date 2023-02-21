@@ -470,4 +470,152 @@ class ProductController extends Controller
         return response()->json(["DIFERENCIA"=>$insdiff]);
     }
 
+    public function compareprices(){
+        $date = now()->format('Y-m-d');
+
+        $productspub = "SELECT DISTINCT CODART AS CODIGO FROM F_ART INNER JOIN F_STO ON F_STO.ARTSTO = F_ART.CODART WHERE ACTSTO <> 0 AND ALMSTO NOT IN ('DES','FDT')";
+        $exec = $this->conn->prepare($productspub);
+        $exec -> execute();
+        $fact=$exec->fetchall(\PDO::FETCH_ASSOC);
+        foreach($fact as $profac){
+            $asu[]= $profac['CODIGO'];
+        }
+        
+
+        $products = DB::table('prices_product AS PP')
+        ->join('products AS P','P.id','PP._product')
+        ->join('product_categories AS PC','PC.id','P._category')
+        // ->whereDate('P.updated_at',$date)
+        ->where('P._status','!=',4)
+        ->whereIn('P.code',$asu)
+        ->select('P.code as codigo','P.cost as costo','PP.*')
+        ->selectraw('GETSECTION(PC.id) as seccion')
+        ->orderBy('P.code','asc')
+        ->get();
+        $margen = 1.05;
+        foreach($products as $product){
+            if($product->seccion == "Mochila"){
+                $costo = $product->costo;
+                $centro = $product->CENTRO;
+                $especial = $product->ESPECIAL;
+                $caja = $product->CAJA;
+                $docena = $product->DOCENA;
+                $mayoreo = $product->MAYOREO;
+            }else{
+                $costo = round($product->costo * $margen,0);
+                $centro = round($product->CENTRO * $margen,0);
+                $especial = round($product->ESPECIAL * $margen,0);
+                $caja = round($product->CAJA * $margen,0);
+                $docena = round($product->DOCENA * $margen,0);
+                $mayoreo = round($product->MAYOREO * $margen,0);
+            }
+            if($mayoreo == $centro){
+                $menudeo = $caja;
+            }elseif(($mayoreo >= 0) && ($mayoreo <= 49)){
+                $menudeo = $mayoreo + 5;
+            }elseif(($mayoreo >= 50) && ($mayoreo <= 99)){
+                $menudeo = $mayoreo + 10;
+            }elseif(($mayoreo >= 100) && ($mayoreo <= 499)){
+                $menudeo = $mayoreo + 20;
+            }elseif(($mayoreo >= 500) && ($mayoreo <= 999)){
+                $menudeo = $mayoreo + 50;
+            }elseif($mayoreo >= 1000){
+                $menudeo =  $mayoreo + 100; 
+            }
+
+            $res[]=[
+                "codigo"=>$product->codigo,
+                // "costo"=>$costo,
+                "centro"=>$centro,
+                "especial"=>$especial,
+                "caja"=>$caja,
+                "docena"=>$docena,
+                "mayoreo"=>$mayoreo,
+                "menudeo"=>$menudeo,
+            ]; 
+        }
+
+        $pricepub = "SELECT DISTINCT
+        F_LTA.ARTLTA AS CODIGO,
+        F_ART.PCOART AS COSTO,
+        MAX(iif(F_LTA.TARLTA = 6 , F_LTA.PRELTA ,0 )) AS CENTRO,
+        MAX(iif(F_LTA.TARLTA = 5 , F_LTA.PRELTA ,0 )) AS ESPECIAL,
+        MAX(iif(F_LTA.TARLTA = 4 , F_LTA.PRELTA ,0 )) AS CAJA,
+        MAX(iif(F_LTA.TARLTA = 3 , F_LTA.PRELTA ,0 )) AS DOCENA,
+        MAX(iif(F_LTA.TARLTA = 2 , F_LTA.PRELTA ,0 )) AS MAYOREO,
+        MAX(iif(F_LTA.TARLTA = 1 , F_LTA.PRELTA ,0 )) AS MENUDEO
+        FROM ((F_LTA
+        INNER JOIN F_ART ON F_ART.CODART = F_LTA.ARTLTA)
+        INNER JOIN F_STO ON F_STO.ARTSTO = F_ART.CODART)
+        WHERE ACTSTO <> 0 AND ALMSTO NOT IN ('DES','FDT')
+        GROUP BY F_LTA.ARTLTA, F_ART.PCOART 
+        ORDER BY F_LTA.ARTLTA ASC";
+        $exec = $this->conn->prepare($pricepub);
+        $exec -> execute();
+        $pub=$exec->fetchall(\PDO::FETCH_ASSOC);
+        foreach($pub as $price){
+            $pric[]= [
+                "codigo"=>$price['CODIGO'],
+                // "costo"=>doubleval($price['COSTO']),
+                "centro"=>intval($price['CENTRO']),
+                "especial"=>intval($price['ESPECIAL']),
+                "caja"=>intval($price['CAJA']),
+                "docena"=>intval($price['DOCENA']),
+                "mayoreo"=>intval($price['MAYOREO']),
+                "menudeo"=>intval($price['MENUDEO']),
+
+            ];
+        }
+
+        $prduc = array_udiff($res,$pric, function($a,$b){
+            if($a == $b){
+                return  0;
+                
+            }else{
+                return ($a > $b) ? 1 : -1;
+            }
+        });
+        if($prduc){
+            foreach($prduc as $dife){
+                $diff[] = $dife['codigo'];
+
+                $updcen = "UPDATE F_LTA SET PRELTA =".$dife['centro']." WHERE TARLTA = 6 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($updcen);
+                $exec -> execute([$dife['codigo']]);
+
+                $updes = "UPDATE F_LTA SET PRELTA =".$dife['especial']." WHERE TARLTA = 5 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($updes);
+                $exec -> execute([$dife['codigo']]);
+
+                $updcaj = "UPDATE F_LTA SET PRELTA =".$dife['caja']." WHERE TARLTA = 4 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($updcaj);
+                $exec -> execute([$dife['codigo']]);
+
+                $upddoc = "UPDATE F_LTA SET PRELTA =".$dife['docena']." WHERE TARLTA = 3 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($upddoc);
+                $exec -> execute([$dife['codigo']]);
+
+                $updmay = "UPDATE F_LTA SET PRELTA =".$dife['mayoreo']." WHERE TARLTA = 2 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($updmay);
+                $exec -> execute([$dife['codigo']]);
+
+                $updmen = "UPDATE F_LTA SET PRELTA =".$dife['menudeo']." WHERE TARLTA = 1 AND ARTLTA = ?";
+                $exec = $this->conn->prepare($updmen);
+                $exec -> execute([$dife['codigo']]);
+            }
+        $modifi = DB::table('products AS P')->join('product_categories as PC', 'PC.id','P._category')->whereIn('P.code',$diff)->select('P.code','P.description')->selectraw('GETSECTION(PC.id)')->get();
+        foreach($modifi as $mod){
+            $actualizados[] = $mod; 
+        }
+
+        }else{$diff = []; $actualizados = [];}
+
+
+
+
+        return response()->json(["produtms"=>$res,"productfac"=>$pric,"ARTIDULOS"=>$actualizados]);
+
+        
+    }
+
 }

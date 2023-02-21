@@ -37,6 +37,8 @@ Route::prefix('product')->group(function(){
     Route::get('/insart',[ProductController::class, 'productInsert']);
     Route::get('/celler',[ProductController::class, 'replyCeller']);
     Route::get('/minmax',[ProductController::class, 'minmax']);
+    Route::get('/compareprices',[ProductController::class, 'compareprices']);
+    
 
 
 });
