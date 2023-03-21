@@ -414,7 +414,7 @@ class Kernel extends ConsoleKernel
 
     // })->everyMinute();
 
-    $schedule->call(function (){
+    $schedule->call(function (){//REPLICACION DE MIN Y MAXIMOS
         $workpoint = env('WKP');
         $minmaxpub = DB::connection('puebla')
         ->table('product_stock AS PS')
